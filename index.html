@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FRAMEGRAB</title>
+<meta name="theme-color" content="#0d0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FRAMEGRAB">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0d10;
+    --panel:#16161b;
+    --panel-2:#1d1d23;
+    --line:#2c2c34;
+    --ink:#e9e6df;
+    --muted:#8b8a85;
+    --amber:#ffb000;
+    --amber-dim:#b87d00;
+    --green:#3ddc7f;
+    --red:#ff5c5c;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #1a1a22 0%, var(--bg) 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    min-height:100vh;
+    line-height:1.5;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:1;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.022) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;
+    opacity:.5;
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:34px 22px 80px;position:relative;z-index:2}
+
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:26px}
+  h1{
+    font-family:var(--mono);font-weight:600;font-size:26px;letter-spacing:3px;margin:0;
+    color:var(--amber);
+    text-shadow:0 0 18px rgba(255,176,0,.25);
+  }
+  h1 .blink{animation:blink 1.4s steps(1) infinite;color:var(--amber)}
+  @keyframes blink{50%{opacity:0}}
+  .tag{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase}
+
+  /* dropzone */
+  #drop{
+    border:1.5px dashed var(--line);
+    border-radius:14px;
+    background:linear-gradient(180deg,var(--panel),#121217);
+    padding:46px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .18s ease, background .18s ease, transform .18s ease;
+  }
+  #drop:hover{border-color:var(--amber-dim)}
+  #drop.hot{border-color:var(--amber);background:linear-gradient(180deg,#1f1c12,#15140f);transform:translateY(-1px)}
+  #drop .big{font-family:var(--mono);font-size:15px;letter-spacing:1px;color:var(--ink)}
+  #drop .sub{font-size:12.5px;color:var(--muted);margin-top:8px;font-family:var(--mono)}
+  .icon{font-size:30px;color:var(--amber);margin-bottom:10px;display:block;font-family:var(--mono)}
+
+  /* panels */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:18px}
+  .panel.hidden,.hidden{display:none}
+  .panel-head{font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+  .panel-head .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);display:inline-block;margin-right:8px;vertical-align:middle}
+
+  /* file readout */
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .cell{background:var(--panel-2);padding:11px 13px}
+  .cell .k{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+  .cell .v{font-family:var(--mono);font-size:15px;color:var(--ink);margin-top:3px}
+  .cell .v.amber{color:var(--amber)}
+
+  /* controls */
+  .ctl-row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;margin-top:6px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  label.lab{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+  .presets{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:13px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:7px;cursor:pointer;transition:.14s}
+  .chip:hover{border-color:var(--amber-dim);color:var(--ink)}
+  .chip.on{background:var(--amber);border-color:var(--amber);color:#1a1300;font-weight:600}
+  input[type=number]{font-family:var(--mono);font-size:15px;width:92px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:7px}
+  input[type=number]:focus{outline:none;border-color:var(--amber)}
+  select{font-family:var(--mono);font-size:14px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:7px}
+  select:focus{outline:none;border-color:var(--amber)}
+  .checkrow{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:13px;color:var(--ink);cursor:pointer;user-select:none}
+  .checkrow input{width:16px;height:16px;accent-color:var(--amber)}
+  .quality{display:flex;align-items:center;gap:10px}
+  input[type=range]{accent-color:var(--amber)}
+
+  .estimate{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:16px}
+  .estimate b{color:var(--amber)}
+  .warn{color:var(--red)!important}
+
+  /* button */
+  .go{margin-top:18px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  button.run{
+    font-family:var(--mono);font-size:14px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;
+    background:var(--amber);color:#1a1300;border:none;padding:13px 26px;border-radius:8px;cursor:pointer;
+    transition:.14s;box-shadow:0 0 0 rgba(255,176,0,0);
+  }
+  button.run:hover:not(:disabled){box-shadow:0 6px 22px rgba(255,176,0,.28);transform:translateY(-1px)}
+  button.run:disabled{background:var(--line);color:var(--muted);cursor:not-allowed}
+  button.ghost{
+    font-family:var(--mono);font-size:13px;letter-spacing:1px;text-transform:uppercase;
+    background:transparent;color:var(--muted);border:1px solid var(--line);padding:12px 18px;border-radius:8px;cursor:pointer;transition:.14s
+  }
+  button.ghost:hover{color:var(--ink);border-color:var(--amber-dim)}
+
+  /* progress */
+  .bar{height:9px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-top:6px}
+  .bar > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--amber-dim),var(--amber));transition:width .12s linear}
+  .progtext{font-family:var(--mono);font-size:13px;color:var(--ink);margin-bottom:8px;display:flex;justify-content:space-between}
+
+  /* results */
+  .resgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:6px}
+  .thumb{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+  .thumb img{display:block;width:100%;height:96px;object-fit:cover;background:#000}
+  .thumb .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);padding:6px 8px;display:flex;justify-content:space-between;align-items:center}
+  .thumb a.dl{color:var(--amber);text-decoration:none}
+  .thumb a.dl:hover{text-decoration:underline}
+  .more{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;margin-top:12px}
+
+  .err{font-family:var(--mono);font-size:13px;color:var(--red);margin-top:10px}
+  footer{margin-top:40px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+  a.link{color:var(--amber-dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>FRAMEGRAB<span class="blink">_</span></h1>
+    <span class="tag">mp4 / gif → stills · full resolution · runs in your browser</span>
+  </header>
+
+  <div id="drop">
+    <span class="icon">[ + ]</span>
+    <div class="big">Drop an MP4 or GIF here</div>
+    <div class="sub">or click to choose a file</div>
+    <input id="file" type="file" accept="video/mp4,video/*,image/gif" hidden>
+  </div>
+
+  <!-- file info + controls -->
+  <div id="setup" class="panel hidden">
+    <div class="panel-head"><span><span class="dot"></span>Source</span><span id="ftype"></span></div>
+    <div class="readout">
+      <div class="cell"><div class="k">File</div><div class="v" id="fname">—</div></div>
+      <div class="cell"><div class="k">Resolution</div><div class="v amber" id="fres">—</div></div>
+      <div class="cell"><div class="k">Duration</div><div class="v" id="fdur">—</div></div>
+      <div class="cell"><div class="k">Size</div><div class="v" id="fsize">—</div></div>
+    </div>
+
+    <div style="margin-top:20px" class="ctl-row">
+      <div class="field">
+        <label class="lab">Stills per second</label>
+        <div class="presets" id="presets">
+          <span class="chip" data-fps="1">1</span>
+          <span class="chip" data-fps="2">2</span>
+          <span class="chip on" data-fps="4">4</span>
+          <span class="chip" data-fps="8">8</span>
+          <span class="chip" data-fps="12">12</span>
+          <span class="chip" data-fps="24">24</span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lab">Custom rate</label>
+        <input id="fps" type="number" min="0.1" max="120" step="0.1" value="4">
+      </div>
+      <div class="field">
+        <label class="lab">Format</label>
+        <select id="fmt">
+          <option value="image/png">PNG (lossless)</option>
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/webp">WebP (lossless)</option>
+        </select>
+      </div>
+      <div class="field" id="qwrap" style="display:none">
+        <label class="lab">Quality</label>
+        <div class="quality"><input id="quality" type="range" min="50" max="100" value="92"><span id="qval" style="font-family:var(--mono);font-size:13px;color:var(--amber)">92</span></div>
+      </div>
+    </div>
+
+    <div class="ctl-row" id="gifopt" style="display:none;margin-top:14px">
+      <label class="checkrow"><input id="everyframe" type="checkbox"> Extract every native GIF frame (ignore rate)</label>
+    </div>
+
+    <div class="estimate" id="estimate"></div>
+
+    <div class="go">
+      <button class="run" id="run">Extract stills</button>
+      <button class="ghost" id="reset">Clear</button>
+    </div>
+    <div class="err hidden" id="err"></div>
+  </div>
+
+  <!-- progress -->
+  <div id="prog" class="panel hidden">
+    <div class="panel-head"><span><span class="dot"></span>Working</span></div>
+    <div class="progtext"><span id="progmsg">Decoding…</span><span id="progcount"></span></div>
+    <div class="bar"><i id="progbar"></i></div>
+  </div>
+
+  <!-- results -->
+  <div id="results" class="panel hidden">
+    <div class="panel-head"><span><span class="dot"></span>Result</span><span id="resmeta"></span></div>
+    <div class="go" style="margin-top:0;margin-bottom:18px">
+      <button class="run" id="zipbtn">Download all (.zip)</button>
+      <button class="ghost" id="again">New file</button>
+    </div>
+    <div class="resgrid" id="grid"></div>
+    <div class="more hidden" id="more"></div>
+  </div>
+
+  <footer>FRAMEGRAB · nothing leaves this machine · drag a file in and go</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- tiny helpers ---------- */
+const $ = s => document.querySelector(s);
+const fmtBytes = b => b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':b<1073741824?(b/1048576).toFixed(1)+' MB':(b/1073741824).toFixed(2)+' GB';
+const fmtTime  = s => { if(!isFinite(s)) return '—'; const m=Math.floor(s/60),ss=(s%60); return (m?m+'m ':'')+ss.toFixed(2)+'s'; };
+const pad = (n,w)=>String(n).padStart(w,'0');
+
+/* ---------- state ---------- */
+let current = null;          // {file, kind:'video'|'gif', width, height, duration, gifDurations:[]}
+let fps = 4;
+let producedBlobs = [];      // [{name, blob}]
+let objectUrls = [];
+
+/* ---------- ZIP writer (store, no compression) ---------- */
+const CRC = (()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = (c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function makeZip(files){            // files:[{name, data:Uint8Array}]
+  const enc=new TextEncoder(); const parts=[]; const central=[]; let offset=0;
+  for(const f of files){
+    const nb=enc.encode(f.name), crc=crc32(f.data), sz=f.data.length;
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0,true); lh.setUint16(8,0,true);
+    lh.setUint16(10,0,true); lh.setUint16(12,0,true); lh.setUint32(14,crc,true); lh.setUint32(18,sz,true);
+    lh.setUint32(22,sz,true); lh.setUint16(26,nb.length,true); lh.setUint16(28,0,true);
+    const lhu=new Uint8Array(lh.buffer); parts.push(lhu,nb,f.data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true); ch.setUint16(8,0,true);
+    ch.setUint16(10,0,true); ch.setUint16(12,0,true); ch.setUint16(14,0,true); ch.setUint32(16,crc,true);
+    ch.setUint32(20,sz,true); ch.setUint32(24,sz,true); ch.setUint16(28,nb.length,true); ch.setUint16(30,0,true);
+    ch.setUint16(32,0,true); ch.setUint16(34,0,true); ch.setUint16(36,0,true); ch.setUint32(38,0,true); ch.setUint32(42,offset,true);
+    central.push(new Uint8Array(ch.buffer),nb);
+    offset += lhu.length+nb.length+f.data.length;
+  }
+  let cSize=0; central.forEach(c=>cSize+=c.length); const cOff=offset;
+  const eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true); eo.setUint16(4,0,true); eo.setUint16(6,0,true);
+  eo.setUint16(8,files.length,true); eo.setUint16(10,files.length,true); eo.setUint32(12,cSize,true); eo.setUint32(16,cOff,true); eo.setUint16(20,0,true);
+  return new Blob([...parts,...central,new Uint8Array(eo.buffer)],{type:'application/zip'});
+}
+
+/* ---------- canvas → blob ---------- */
+function canvasToBlob(canvas, type, quality){
+  return new Promise((res,rej)=>{
+    canvas.toBlob(b=>{ b?res(b):rej(new Error('encode failed')); }, type, quality);
+  });
+}
+
+/* ---------- load file metadata on selection ---------- */
+async function loadFile(file){
+  resetResults();
+  const kind = (file.type==='image/gif' || /\.gif$/i.test(file.name)) ? 'gif' : 'video';
+  current = {file, kind, width:0, height:0, duration:0, gifDurations:null};
+  $('#fname').textContent = file.name;
+  $('#fsize').textContent = fmtBytes(file.size);
+  $('#ftype').textContent = kind.toUpperCase();
+  $('#gifopt').style.display = kind==='gif' ? 'flex' : 'none';
+
+  if(kind==='video'){
+    const url=URL.createObjectURL(file);
+    const v=document.createElement('video'); v.preload='metadata'; v.muted=true; v.src=url;
+    await new Promise((res,rej)=>{ v.onloadedmetadata=res; v.onerror=()=>rej(new Error('Could not read this video. Most H.264 MP4s work; some codecs are not supported by the browser.')); });
+    current.width=v.videoWidth; current.height=v.videoHeight; current.duration=v.duration;
+    current._video=v; current._url=url;
+  } else {
+    if(typeof ImageDecoder==='undefined') throw new Error('Your browser cannot decode GIF frames (needs ImageDecoder / WebCodecs). Safari 17+, recent Chrome and Firefox all support it.');
+    const buf=await file.arrayBuffer();
+    const dec=new ImageDecoder({data:buf, type:'image/gif'});
+    await dec.tracks.ready;
+    const fc=dec.tracks.selectedTrack.frameCount;
+    // decode frame 0 for dimensions, sum durations
+    const durs=[]; let total=0; let w=0,h=0;
+    for(let i=0;i<fc;i++){
+      const {image}=await dec.decode({frameIndex:i});
+      if(i===0){ w=image.displayWidth; h=image.displayHeight; }
+      const d=(image.duration!=null && image.duration>0)? image.duration/1e6 : 0.1;
+      durs.push(d); total+=d; image.close();
+    }
+    current.width=w; current.height=h; current.duration=total;
+    current.gifDurations=durs; current.gifCount=fc; current._buf=buf;
+  }
+  $('#fres').textContent = current.width+' × '+current.height;
+  $('#fdur').textContent = fmtTime(current.duration);
+  $('#setup').classList.remove('hidden');
+  $('#drop').style.display='none';
+  updateEstimate();
+}
+
+/* ---------- estimate ---------- */
+function updateEstimate(){
+  if(!current) return;
+  const el=$('#estimate');
+  let count;
+  if(current.kind==='gif' && $('#everyframe').checked){
+    count = current.gifCount;
+    el.innerHTML = `Will export <b>${count}</b> stills (one per native frame) at <b>${current.width}×${current.height}</b>.`;
+  } else {
+    count = Math.max(1, Math.ceil(current.duration * fps));
+    el.innerHTML = `At <b>${fps}</b>/sec over <b>${fmtTime(current.duration)}</b> → about <b>${count}</b> stills at <b>${current.width}×${current.height}</b>.`;
+  }
+  if(count>300){
+    el.innerHTML += ` <span class="warn">That is a lot of frames at full resolution and may use heavy memory. Consider a lower rate.</span>`;
+  }
+  current._estCount=count;
+}
+
+/* ---------- video extraction ---------- */
+function seekTo(video, t){
+  return new Promise(res=>{
+    let done=false;
+    const finish=()=>{ if(done) return; done=true; res(); };
+    video.addEventListener('seeked', ()=>{
+      if(video.requestVideoFrameCallback){ video.requestVideoFrameCallback(()=>finish()); setTimeout(finish,120); }
+      else finish();
+    }, {once:true});
+    video.currentTime = Math.min(t, Math.max(0, video.duration - 0.001));
+  });
+}
+
+async function extractVideo(onProgress){
+  const v=current._video; const w=current.width, h=current.height;
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const ctx=cv.getContext('2d');
+  const type=$('#fmt').value, q=$('#quality').value/100;
+  const interval=1/fps; const times=[];
+  for(let t=0; t<current.duration; t+=interval) times.push(t);
+  if(times.length===0) times.push(0);
+  const out=[];
+  for(let i=0;i<times.length;i++){
+    await seekTo(v, times[i]);
+    ctx.drawImage(v,0,0,w,h);
+    const blob=await canvasToBlob(cv,type,q);
+    out.push({t:times[i], blob});
+    onProgress(i+1, times.length);
+    await new Promise(r=>setTimeout(r,0)); // yield so UI updates
+  }
+  return out;
+}
+
+/* ---------- gif extraction ---------- */
+async function extractGif(onProgress){
+  const dec=new ImageDecoder({data:current._buf, type:'image/gif'});
+  await dec.tracks.ready;
+  const fc=dec.tracks.selectedTrack.frameCount;
+  const type=$('#fmt').value, q=$('#quality').value/100;
+  const cv=document.createElement('canvas'); const ctx=cv.getContext('2d');
+
+  // decode each native frame once → blob + cumulative start time
+  const frames=[]; let acc=0;
+  for(let i=0;i<fc;i++){
+    const {image}=await dec.decode({frameIndex:i});
+    cv.width=image.displayWidth; cv.height=image.displayHeight;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.drawImage(image,0,0);
+    const blob=await canvasToBlob(cv,type,q);
+    const d=(image.duration!=null && image.duration>0)? image.duration/1e6 : 0.1;
+    frames.push({blob, start:acc, dur:d}); acc+=d; image.close();
+    onProgress(i+1, fc, 'Decoding frames');
+    await new Promise(r=>setTimeout(r,0));
+  }
+  const total=acc;
+
+  if($('#everyframe').checked || total<=0){
+    return frames.map(f=>({t:f.start, blob:f.blob}));
+  }
+  // sample timeline at requested rate
+  const interval=1/fps; const out=[];
+  for(let s=0; s<total; s+=interval){
+    let idx=0;
+    for(let k=0;k<frames.length;k++){ if(frames[k].start<=s) idx=k; else break; }
+    out.push({t:s, blob:frames[idx].blob});
+  }
+  return out;
+}
+
+/* ---------- run ---------- */
+async function run(){
+  if(!current) return;
+  hideErr();
+  $('#setup').classList.add('hidden');
+  $('#prog').classList.remove('hidden');
+  $('#results').classList.add('hidden');
+  setProg(0,1,'Starting…');
+
+  try{
+    const onProgress=(i,n,label)=>setProg(i,n,label||'Capturing stills');
+    const raw = current.kind==='video' ? await extractVideo(onProgress) : await extractGif(onProgress);
+
+    // name files
+    const ext = $('#fmt').value==='image/png'?'png':$('#fmt').value==='image/webp'?'webp':'jpg';
+    const base = current.file.name.replace(/\.[^.]+$/,'').replace(/[^a-z0-9_\-]+/gi,'_').slice(0,40) || 'frame';
+    const width = String(raw.length).length;
+    producedBlobs = raw.map((r,i)=>({ name:`${base}_${pad(i+1,Math.max(4,width))}_t${r.t.toFixed(3)}s.${ext}`, blob:r.blob }));
+
+    await showResults();
+  }catch(e){
+    $('#prog').classList.add('hidden');
+    $('#setup').classList.remove('hidden');
+    showErr(e.message||String(e));
+  }
+}
+
+function setProg(i,n,label){
+  $('#progbar').style.width = Math.round(i/n*100)+'%';
+  $('#progmsg').textContent = label;
+  $('#progcount').textContent = i+' / '+n;
+}
+
+async function showResults(){
+  $('#prog').classList.add('hidden');
+  $('#results').classList.remove('hidden');
+  let totalBytes=0; producedBlobs.forEach(p=>totalBytes+=p.blob.size);
+  $('#resmeta').textContent = producedBlobs.length+' stills · '+fmtBytes(totalBytes);
+
+  const grid=$('#grid'); grid.innerHTML='';
+  clearUrls();
+  const CAP=48;
+  const show=producedBlobs.slice(0,CAP);
+  show.forEach((p,i)=>{
+    const url=URL.createObjectURL(p.blob); objectUrls.push(url);
+    const div=document.createElement('div'); div.className='thumb';
+    div.innerHTML=`<img src="${url}" loading="lazy"><div class="meta"><span>#${i+1}</span><a class="dl" href="${url}" download="${p.name}">save</a></div>`;
+    grid.appendChild(div);
+  });
+  $('#more').classList.toggle('hidden', producedBlobs.length<=CAP);
+  if(producedBlobs.length>CAP) $('#more').textContent = `+ ${producedBlobs.length-CAP} more in the zip (preview capped at ${CAP})`;
+}
+
+async function downloadZip(){
+  const btn=$('#zipbtn'); const orig=btn.textContent; btn.disabled=true; btn.textContent='Zipping…';
+  try{
+    const files=[];
+    for(const p of producedBlobs){
+      const ab=await p.blob.arrayBuffer();
+      files.push({name:p.name, data:new Uint8Array(ab)});
+    }
+    const zip=makeZip(files);
+    const url=URL.createObjectURL(zip);
+    const base=current.file.name.replace(/\.[^.]+$/,'').replace(/[^a-z0-9_\-]+/gi,'_').slice(0,40) || 'stills';
+    const a=document.createElement('a'); a.href=url; a.download=`${base}_stills.zip`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }catch(e){ showErr('Could not build zip: '+(e.message||e)); }
+  btn.disabled=false; btn.textContent=orig;
+}
+
+/* ---------- ui plumbing ---------- */
+function clearUrls(){ objectUrls.forEach(u=>URL.revokeObjectURL(u)); objectUrls=[]; }
+function resetResults(){ producedBlobs=[]; clearUrls(); $('#results').classList.add('hidden'); $('#grid').innerHTML=''; }
+function showErr(m){ const e=$('#err'); e.textContent=m; e.classList.remove('hidden'); }
+function hideErr(){ $('#err').classList.add('hidden'); }
+function fullReset(){
+  if(current && current._url) URL.revokeObjectURL(current._url);
+  current=null; resetResults();
+  $('#setup').classList.add('hidden'); $('#prog').classList.add('hidden');
+  $('#drop').style.display='block'; $('#file').value=''; hideErr();
+}
+
+// drop zone
+const drop=$('#drop'), fileInput=$('#file');
+drop.addEventListener('click', ()=>fileInput.click());
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) handleSelect(f); });
+fileInput.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) handleSelect(f); });
+
+async function handleSelect(f){
+  hideErr();
+  try{ await loadFile(f); }
+  catch(e){ fullReset(); showErr(e.message||String(e)); }
+}
+
+// presets / fps
+$('#presets').addEventListener('click', e=>{
+  const chip=e.target.closest('.chip'); if(!chip) return;
+  document.querySelectorAll('#presets .chip').forEach(c=>c.classList.remove('on'));
+  chip.classList.add('on'); fps=parseFloat(chip.dataset.fps); $('#fps').value=fps; updateEstimate();
+});
+$('#fps').addEventListener('input', e=>{
+  const v=parseFloat(e.target.value); if(isFinite(v)&&v>0){ fps=v; document.querySelectorAll('#presets .chip').forEach(c=>c.classList.toggle('on', parseFloat(c.dataset.fps)===v)); updateEstimate(); }
+});
+// format / quality
+$('#fmt').addEventListener('change', e=>{ $('#qwrap').style.display = e.target.value==='image/jpeg' ? 'flex':'none'; });
+$('#quality').addEventListener('input', e=>{ $('#qval').textContent=e.target.value; });
+$('#everyframe').addEventListener('change', updateEstimate);
+
+// buttons
+$('#run').addEventListener('click', run);
+$('#reset').addEventListener('click', fullReset);
+$('#again').addEventListener('click', fullReset);
+$('#zipbtn').addEventListener('click', downloadZip);
+
+// register service worker so the docked app works offline after first launch
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
