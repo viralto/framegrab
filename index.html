@@ -122,6 +122,7 @@
     background:transparent;color:var(--muted);border:1px solid var(--line);padding:12px 18px;border-radius:8px;cursor:pointer;transition:.14s
   }
   button.ghost:hover{color:var(--ink);border-color:var(--amber-dim)}
+  button.ghost:disabled{opacity:.45;cursor:not-allowed}
 
   /* progress */
   .bar{height:9px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-top:6px}
@@ -131,6 +132,12 @@
   /* results */
   .resgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:6px}
   .thumb{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+  .thumb.selected{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber)}
+  .thumb .pick{display:block;position:relative;cursor:pointer}
+  .thumb .pick input{position:absolute;top:8px;left:8px;width:20px;height:20px;margin:0;accent-color:var(--amber);cursor:pointer}
+  .thumb .pick:focus-within{outline:2px solid var(--amber);outline-offset:-3px}
+  .selection-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  #selection-count{font-family:var(--mono);font-size:12px;color:var(--muted)}
   .thumb img{display:block;width:100%;height:auto;object-fit:contain;background:#000}
   .thumb .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);padding:6px 8px;display:flex;justify-content:space-between;align-items:center}
   .thumb a.dl{color:var(--amber);text-decoration:none}
@@ -220,7 +227,13 @@
     <div class="panel-head"><span><span class="dot"></span>Result</span><span id="resmeta"></span></div>
     <div class="go" style="margin-top:0;margin-bottom:18px">
       <button class="run" id="zipbtn">Download all (.zip)</button>
+      <button class="run" id="selectedzip" disabled>Download selected (.zip)</button>
       <button class="ghost" id="again">New file</button>
+    </div>
+    <div class="selection-tools">
+      <button class="ghost" id="selectall">Select all</button>
+      <button class="ghost" id="clearselection" disabled>Clear selection</button>
+      <span id="selection-count" role="status" aria-live="polite">0 selected</span>
     </div>
     <div class="resgrid" id="grid"></div>
   </div>
@@ -242,6 +255,8 @@ let current = null;          // {file, kind:'video'|'gif', width, height, durati
 let fps = 4;
 let producedBlobs = [];      // [{name, blob}]
 let objectUrls = [];
+let selectedFrames = new Set();
+let zipping = false;
 
 /* ---------- ZIP writer (store, no compression) ---------- */
 const CRC = (()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = (c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
@@ -445,36 +460,59 @@ async function showResults(){
 
   const grid=$('#grid'); grid.innerHTML='';
   clearUrls();
+  selectedFrames.clear();
   const previews=document.createDocumentFragment();
   producedBlobs.forEach((p,i)=>{
     const url=URL.createObjectURL(p.blob); objectUrls.push(url);
     const div=document.createElement('div'); div.className='thumb';
-    div.innerHTML=`<img src="${url}" width="${current.width}" height="${current.height}" loading="lazy" decoding="async" alt="Captured frame ${i+1}"><div class="meta"><span>#${i+1}</span><a class="dl" href="${url}" download="${p.name}">save</a></div>`;
+    div.innerHTML=`<label class="pick"><input type="checkbox" data-frame="${i}" aria-label="Select frame ${i+1}"><img src="${url}" width="${current.width}" height="${current.height}" loading="lazy" decoding="async" alt="Captured frame ${i+1}"></label><div class="meta"><span>#${i+1}</span><a class="dl" href="${url}" download="${p.name}">save</a></div>`;
     previews.appendChild(div);
   });
   grid.appendChild(previews);
+  updateSelection();
 }
 
-async function downloadZip(){
-  const btn=$('#zipbtn'); const orig=btn.textContent; btn.disabled=true; btn.textContent='Zipping…';
+function updateSelection(){
+  $('#selection-count').textContent = selectedFrames.size+' of '+producedBlobs.length+' selected';
+  $('#selectedzip').disabled = zipping || selectedFrames.size===0;
+  $('#zipbtn').disabled = zipping || producedBlobs.length===0;
+  $('#selectall').disabled = selectedFrames.size===producedBlobs.length;
+  $('#clearselection').disabled = selectedFrames.size===0;
+}
+
+function selectFrames(all){
+  selectedFrames = new Set(all ? producedBlobs.map((_,i)=>i) : []);
+  $('#grid').querySelectorAll('input[data-frame]').forEach(input=>{
+    input.checked=all;
+    input.closest('.thumb').classList.toggle('selected',all);
+  });
+  updateSelection();
+}
+
+async function downloadZip(selectedOnly=false){
+  if(zipping || !current) return;
+  const frames=producedBlobs.filter((_,i)=>!selectedOnly || selectedFrames.has(i));
+  if(!frames.length) return;
+  const base=current.file.name.replace(/\.[^.]+$/,'').replace(/[^a-z0-9_\-]+/gi,'_').slice(0,40) || 'stills';
+  const btn=$(selectedOnly ? '#selectedzip' : '#zipbtn'); const orig=btn.textContent;
+  zipping=true; updateSelection(); btn.textContent='Zipping…';
   try{
     const files=[];
-    for(const p of producedBlobs){
+    for(const p of frames){
       const ab=await p.blob.arrayBuffer();
       files.push({name:p.name, data:new Uint8Array(ab)});
     }
     const zip=makeZip(files);
     const url=URL.createObjectURL(zip);
-    const base=current.file.name.replace(/\.[^.]+$/,'').replace(/[^a-z0-9_\-]+/gi,'_').slice(0,40) || 'stills';
-    const a=document.createElement('a'); a.href=url; a.download=`${base}_stills.zip`; a.click();
+    const a=document.createElement('a'); a.href=url; a.download=`${base}_${selectedOnly?'selected_stills':'stills'}.zip`; a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
   }catch(e){ showErr('Could not build zip: '+(e.message||e)); }
-  btn.disabled=false; btn.textContent=orig;
+  zipping=false; btn.textContent=orig; updateSelection();
 }
 
 /* ---------- ui plumbing ---------- */
 function clearUrls(){ objectUrls.forEach(u=>URL.revokeObjectURL(u)); objectUrls=[]; }
-function resetResults(){ producedBlobs=[]; clearUrls(); $('#results').classList.add('hidden'); $('#grid').innerHTML=''; }
+function resetResults(){ producedBlobs=[]; selectedFrames.clear(); clearUrls(); $('#results').classList.add('hidden'); $('#grid').innerHTML=''; updateSelection(); }
 function showErr(m){ const e=$('#err'); e.textContent=m; e.classList.remove('hidden'); }
 function hideErr(){ $('#err').classList.add('hidden'); }
 function fullReset(){
@@ -516,7 +554,17 @@ $('#everyframe').addEventListener('change', updateEstimate);
 $('#run').addEventListener('click', run);
 $('#reset').addEventListener('click', fullReset);
 $('#again').addEventListener('click', fullReset);
-$('#zipbtn').addEventListener('click', downloadZip);
+$('#zipbtn').addEventListener('click', ()=>downloadZip());
+$('#selectedzip').addEventListener('click', ()=>downloadZip(true));
+$('#selectall').addEventListener('click', ()=>selectFrames(true));
+$('#clearselection').addEventListener('click', ()=>selectFrames(false));
+$('#grid').addEventListener('change', e=>{
+  const input=e.target.closest('input[data-frame]'); if(!input) return;
+  const index=Number(input.dataset.frame);
+  if(input.checked) selectedFrames.add(index); else selectedFrames.delete(index);
+  input.closest('.thumb').classList.toggle('selected',input.checked);
+  updateSelection();
+});
 
 // register service worker so the docked app works offline after first launch
 if('serviceWorker' in navigator){
