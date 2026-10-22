@@ -1,4 +1,4 @@
-const CACHE = 'framegrab-v1';
+const CACHE = 'framegrab-v2';
 const ASSETS = [
   './',
   './index.html',
