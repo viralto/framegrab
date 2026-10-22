@@ -131,11 +131,10 @@
   /* results */
   .resgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:6px}
   .thumb{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
-  .thumb img{display:block;width:100%;height:96px;object-fit:cover;background:#000}
+  .thumb img{display:block;width:100%;height:auto;object-fit:contain;background:#000}
   .thumb .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);padding:6px 8px;display:flex;justify-content:space-between;align-items:center}
   .thumb a.dl{color:var(--amber);text-decoration:none}
   .thumb a.dl:hover{text-decoration:underline}
-  .more{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;margin-top:12px}
 
   .err{font-family:var(--mono);font-size:13px;color:var(--red);margin-top:10px}
   footer{margin-top:40px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
@@ -224,7 +223,6 @@
       <button class="ghost" id="again">New file</button>
     </div>
     <div class="resgrid" id="grid"></div>
-    <div class="more hidden" id="more"></div>
   </div>
 
   <footer>FRAMEGRAB · nothing leaves this machine · drag a file in and go</footer>
@@ -447,16 +445,14 @@ async function showResults(){
 
   const grid=$('#grid'); grid.innerHTML='';
   clearUrls();
-  const CAP=48;
-  const show=producedBlobs.slice(0,CAP);
-  show.forEach((p,i)=>{
+  const previews=document.createDocumentFragment();
+  producedBlobs.forEach((p,i)=>{
     const url=URL.createObjectURL(p.blob); objectUrls.push(url);
     const div=document.createElement('div'); div.className='thumb';
-    div.innerHTML=`<img src="${url}" loading="lazy"><div class="meta"><span>#${i+1}</span><a class="dl" href="${url}" download="${p.name}">save</a></div>`;
-    grid.appendChild(div);
+    div.innerHTML=`<img src="${url}" width="${current.width}" height="${current.height}" loading="lazy" decoding="async" alt="Captured frame ${i+1}"><div class="meta"><span>#${i+1}</span><a class="dl" href="${url}" download="${p.name}">save</a></div>`;
+    previews.appendChild(div);
   });
-  $('#more').classList.toggle('hidden', producedBlobs.length<=CAP);
-  if(producedBlobs.length>CAP) $('#more').textContent = `+ ${producedBlobs.length-CAP} more in the zip (preview capped at ${CAP})`;
+  grid.appendChild(previews);
 }
 
 async function downloadZip(){
